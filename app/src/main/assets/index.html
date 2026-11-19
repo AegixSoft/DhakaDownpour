@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dhaka Downpour: Mind the Manhole</title>
+<style>
+:root{--bg:#dfe5ea;--ink:#16202a;--card:rgba(255,255,255,.94);--acc:#0b7d49;--on:#fff;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1319;--ink:#eef3f6;--card:rgba(24,32,42,.94);--acc:#3ecf8e;--on:#04140c;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0e1319;--ink:#eef3f6;--card:rgba(24,32,42,.94);--acc:#3ecf8e;--on:#04140c;color-scheme:dark}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{position:relative;height:100%;margin:0;overflow:hidden;background:var(--bg);color:var(--ink);font:14px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;touch-action:none;-webkit-user-select:none;user-select:none}
+canvas{display:block;width:100%;height:100%}
+.hud{position:absolute;top:8px;left:8px;right:8px;display:flex;justify-content:space-between;gap:6px;pointer-events:none}
+.hud span{background:var(--card);padding:4px 10px;border-radius:99px;font-weight:700;font-size:13px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.bar{position:absolute;top:42px;left:8px;right:8px;height:6px;border-radius:3px;background:var(--card);overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--acc)}
+.ov{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.45)}
+.ov[hidden]{display:none}
+.card{max-width:420px;max-height:100%;overflow:auto;background:var(--card);color:var(--ink);padding:22px;border-radius:18px;text-align:center}
+.card h1{margin:0 0 6px;font-size:26px;line-height:1.15}
+.card p{margin:8px 0}
+button{margin-top:6px;padding:12px 28px;border:0;border-radius:12px;background:var(--acc);color:var(--on);font-size:18px;font-weight:700;font-family:inherit;cursor:pointer}
+button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="hud"><span id="clk"></span><span id="jam"></span><span id="liv"></span></div>
+<div class="bar"><i id="pr"></i></div>
+<div class="ov" id="ov"><div class="card"><h1 id="t"></h1><p id="m"></p><button id="go"></button><p id="b"></p></div></div>
+<script>
+(()=>{
+"use strict";
+const $=i=>document.getElementById(i),cv=$("c"),ctx=cv.getContext("2d"),eC=$("clk"),eJ=$("jam"),eL=$("liv"),pr=$("pr"),ov=$("ov"),T=$("t"),M=$("m"),G=$("go"),B=$("b");
+const DAY=75,HK=["PEEP!","PAAAP!","HORN OK PLEASE","PEEEEP!"],TOASTS=["★ CNGs are multiplying","★★ Legunas stop for passengers","★★★ Everyone is honking","★★★★ Uttara says hello","★★★★★ Total gridlock!"];
+let W=0,H=0,RW=0,RL=0,PY=0,st="menu",sc=0,px=0,tx=0,t=0,lives=3,inv=0,shake=0,lastWy=0,fl=1,rows=[],holes=[],puds=[],parts=[],drops=[],toast=null,lvPrev=0,fallT=0,fallH=null,last=0,ac=null;
+const keys={l:0,r:0};
+const R=(a,b)=>a+Math.random()*(b-a);
+const hs=n=>{n=Math.sin(n*127.1+311.7)*43758.5453;return n-Math.floor(n)};
+const lvl=()=>Math.min(5,Math.floor(Math.min(1,t/DAY)*6));
+const gap=l=>215-13*l;
+const ck=p=>{const m=420+Math.floor(p*840),h=Math.floor(m/60),n=m%60;return(h%12||12)+":"+(n<10?"0":"")+n+(h<12?" AM":" PM")};
+const S_=(e,s)=>{if(e._s!==s){e._s=s;e.textContent=s}};
+const vx=r=>W/2+r.ox+(r.lg?0:Math.sin(t*1.7+r.ph)*8);
+const el=(x,y,a,b,f)=>{ctx.beginPath();ctx.ellipse(x,y,a,b,0,0,7);ctx.fillStyle=f;ctx.fill()};
+const rr=(x,y,w,h,r,f)=>{ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();ctx.fillStyle=f;ctx.fill()};
+function beep(f,d,ty){try{ac=ac||new(window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain();o.type=ty||"square";o.frequency.value=f;g.gain.value=.05;o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+d)}catch(e){}}
+function size(){const r=cv.getBoundingClientRect();W=r.width;H=r.height;const d=Math.min(window.devicePixelRatio||1,3,Math.sqrt(6e6/Math.max(1,W*H)));cv.width=Math.round(W*d);cv.height=Math.round(H*d);ctx.setTransform(d,0,0,d,0,0);RW=Math.min(W-16,460);RL=(W-RW)/2;PY=H*.78}
+function mkRow(wy,l){const lw=RW/4;fl=Math.max(0,Math.min(3,fl+(Math.random()*3|0)-1));
+for(let i=0;i<4;i++){if(i===fl||Math.random()>.25+.12*l)continue;const lg=Math.random()<.3+.04*l;rows.push({ox:(i-1.5)*lw,wy,lg,hw:lg?23:16,hh:lg?50:24,ph:R(0,6),hk:0,tx:0})}}
+function mkHaz(a,b,l){if(Math.random()<.55+.05*l)holes.push({ox:R(30-RW/2,RW/2-30),wy:(a+b)/2,tw:Math.random()<.5});
+for(let i=1+(Math.random()*2|0);i>0;i--)puds.push({ox:R(30-RW/2,RW/2-30),wy:R(a+25,b-25),rx:R(22,44),ry:R(14,24)})}
+function fill(){const l=lvl(),g=gap(l);while(lastWy+g<=sc+PY+170){const a=lastWy;lastWy+=g;mkRow(lastWy,l);mkHaz(a,lastWy,l)}}
+function reset(){t=0;sc=0;lives=3;inv=0;shake=0;fl=1+(Math.random()*2|0);rows=[];holes=[];puds=[];parts=[];toast=null;lvPrev=0;fallT=0;px=tx=W/2;lastWy=120;
+if(!drops.length)for(let i=0;i<220;i++)drops.push({x:Math.random(),y:Math.random(),v:R(.8,1.3),l:R(10,20)});fill()}
+function end(w,msg){st="over";const p=Math.min(1,t/DAY);let b=0;
+try{b=+localStorage.getItem("dd_best")||0;if(p>b){b=p;localStorage.setItem("dd_best",String(b))}}catch(e){}
+T.textContent=w?"Mission complete!":"Mission failed";M.textContent=msg+" You reached "+ck(p)+".";G.textContent=w?"Play again":"Try again";B.textContent="Best: "+ck(b);ov.hidden=false;beep(w?660:110,.4,"triangle")}
+function upd(dt){
+if(st==="fall"){fallT+=dt;if(fallT>1.1)end(false,"You fell into an open manhole. Dhaka’s drains claim another umbrella.");return}
+t+=dt;const l=lvl();
+if(l>lvPrev){lvPrev=l;toast={s:TOASTS[l-1],t:2.4};beep(220,.15,"triangle")}
+if(keys.l)tx-=520*dt;if(keys.r)tx+=520*dt;
+tx=Math.max(RL+12,Math.min(RL+RW-12,tx));
+const m=560*dt;px+=Math.max(-m,Math.min(m,tx-px));
+let wet=false;
+for(const q of puds)if(((px-W/2-q.ox)/q.rx)**2+((q.wy-sc)/q.ry)**2<1)wet=true;
+for(const h of holes)if(((px-W/2-h.ox)/32)**2+((h.wy-sc)/21)**2<1)wet=true;
+sc+=120*(wet?.6:1)*dt;fill();
+const lo=sc-(H-PY)-140;rows=rows.filter(r=>r.wy>lo);holes=holes.filter(h=>h.wy>lo);puds=puds.filter(q=>q.wy>lo);
+if(wet&&Math.random()<dt*40)parts.push({x:px+R(-8,8),y:PY+R(-4,4),vx:R(-60,60),vy:R(-120,-30),l:.5});
+for(const q of parts){q.x+=q.vx*dt;q.y+=q.vy*dt;q.vy+=300*dt;q.l-=dt}parts=parts.filter(q=>q.l>0);
+inv=Math.max(0,inv-dt);
+for(const h of holes)if(Math.hypot(px-W/2-h.ox,h.wy-sc)<15){st="fall";fallT=0;fallH={x:W/2+h.ox,wy:h.wy};beep(140,.7,"sawtooth");return}
+for(const r of rows){const dx=Math.abs(px-vx(r)),dy=Math.abs(r.wy-sc);
+if(r.hk>0)r.hk-=dt;else if(dx<r.hw+26&&dy<r.hh+26){r.hk=1;r.tx=Math.random()*HK.length|0}
+if(!inv&&dx<r.hw+5&&dy<r.hh+5){lives--;inv=1.6;shake=.3;r.hk=1;beep(300,.3,"sawtooth");if(lives<=0){end(false,"The Uttara jam won this round. You gave up and walked home.");return}}}
+if(t>=DAY)end(true,"You survived the rain, dodged every open manhole and got home to hot khichuri.")}
+function veh(r,x,y){const hw=r.hw,hh=r.hh;rr(x-hw+3,y-hh+4,hw*2,hh*2,9,"rgba(0,0,0,.3)");
+if(r.lg){rr(x-hw,y-hh,hw*2,hh*2,8,"#1f8a7a");rr(x-hw+4,y-hh+20,hw*2-8,hh*2-32,5,"#e8eef0");rr(x-hw+4,y-hh+5,hw*2-8,12,4,"#bfe3ff");
+for(let i=0;i<5;i++){rr(x-hw,y-hh+24+i*14,3,9,1,"#0d3b35");rr(x+hw-3,y-hh+24+i*14,3,9,1,"#0d3b35")}rr(x-hw,y+hh-14,hw*2,4,1,"#f2c230")}
+else{rr(x-hw,y-hh,hw*2,hh*2,10,"#25a257");rr(x-hw+3,y-hh+15,hw*2-6,hh*2-22,6,"#112d1d");rr(x-hw+4,y-hh+4,hw*2-8,9,3,"#bfe3ff")}
+el(x-hw+5,y-hh+2,3,2.5,"#fff2a8");el(x+hw-5,y-hh+2,3,2.5,"#fff2a8");el(x-hw+5,y+hh-2,3,2,"#e23b3b");el(x+hw-5,y+hh-2,3,2,"#e23b3b")}
+function umb(x,y,s,rot){ctx.save();ctx.translate(x,y);ctx.rotate(rot);ctx.scale(s,s);el(2,3,14,14,"rgba(0,0,0,.28)");
+for(let i=0;i<8;i++){ctx.beginPath();ctx.moveTo(0,0);ctx.arc(0,0,14,i*Math.PI/4,(i+1)*Math.PI/4);ctx.closePath();ctx.fillStyle=i%2?"#f3efe4":"#d93b3b";ctx.fill()}
+el(0,0,2.5,2.5,"#222");ctx.restore()}
+function draw(dt){
+const sy=w=>PY-(w-sc);
+ctx.save();if(shake>0){shake-=dt;ctx.translate(R(-4,4),R(-4,4))}
+ctx.fillStyle="#3b4148";ctx.fillRect(-10,-10,W+20,H+20);
+const k0=Math.floor((sc-(H-PY))/90)-1,k1=Math.floor((sc+PY)/90)+1;
+for(let k=k0;k<=k1;k++){const y=sy(k*90+90);for(const s of[-1,1]){const w=60+hs(k*2+s)*80,c=hs(k*7+s*3),bx=s<0?RL-24-w:RL+RW+24;
+ctx.fillStyle="hsl("+(190+c*40)+",12%,"+(26+c*14)+"%)";ctx.fillRect(bx,y+4,w,82);
+ctx.fillStyle="rgba(255,220,120,.35)";for(let i=0;i<3;i++)ctx.fillRect(bx+8+i*w/3.4,y+14,6,8)}}
+ctx.fillStyle="#6b7078";ctx.fillRect(RL-24,-10,24,H+20);ctx.fillRect(RL+RW,-10,24,H+20);
+ctx.fillStyle="#2b3036";ctx.fillRect(RL,-10,RW,H+20);
+ctx.fillStyle="rgba(235,235,225,.5)";
+const j0=Math.floor((sc-(H-PY))/60)-1,j1=Math.floor((sc+PY)/60)+1;
+for(let j=j0;j<=j1;j++){const y=sy(j*60+60);for(let i=1;i<4;i++)ctx.fillRect(RL+RW/4*i-1.5,y+16,3,28)}
+for(const q of puds){const x=W/2+q.ox,y=sy(q.wy);if(y<-60||y>H+60)continue;el(x,y,q.rx,q.ry,"rgba(125,155,180,.42)");
+const f=((t*.7+q.ox)%1+1)%1;ctx.strokeStyle="rgba(255,255,255,"+(.35*(1-f))+")";ctx.lineWidth=1.5;ctx.beginPath();ctx.ellipse(x,y,q.rx*f,q.ry*f,0,0,7);ctx.stroke()}
+for(const h of holes){const x=W/2+h.ox,y=sy(h.wy);if(y<-60||y>H+60)continue;el(x,y,32,21,"rgba(110,140,165,.5)");
+if(Math.hypot(px-x,PY-y)<115){el(x,y,15,15,"#0a0d10");el(x,y,10,10,"#000")}
+ctx.strokeStyle="rgba(235,245,255,.6)";ctx.lineWidth=2;
+for(let i=0;i<2;i++){const a=t*3+i*3.1;ctx.beginPath();ctx.arc(x,y,9+i*7,a,a+2.2);ctx.stroke()}
+if(h.tw){el(x-4,y-3,6,5,"#2f8f3a");el(x+4,y-2,6,5,"#3fb34f");el(x,y+3,6,5,"#287a32")}}
+for(const r of rows){const x=vx(r),y=sy(r.wy);if(y<-90||y>H+90)continue;veh(r,x,y);
+if(r.hk>0){ctx.font="bold 13px system-ui,sans-serif";ctx.textAlign="center";ctx.lineWidth=3;ctx.strokeStyle="#000";ctx.fillStyle="#ffd84a";const s=HK[r.tx];ctx.strokeText(s,x,y-r.hh-8);ctx.fillText(s,x,y-r.hh-8)}}
+if(st==="fall"){const k=Math.min(1,fallT),hy=sy(fallH.wy);umb(px+(fallH.x-px)*k,PY+(hy-PY)*k,Math.max(0,1-fallT),fallT*7)}
+else if(!(inv>0&&Math.floor(inv*10)%2))umb(px,PY,1,0);
+ctx.fillStyle="rgba(205,228,245,.85)";for(const q of parts)ctx.fillRect(q.x,q.y,3,3);
+const p=Math.min(1,t/DAY);ctx.fillStyle="rgba(8,18,38,"+(.08+.34*p)+")";ctx.fillRect(-10,-10,W+20,H+20);
+ctx.strokeStyle="rgba(200,222,242,.5)";ctx.lineWidth=1.2;ctx.beginPath();const n=Math.floor(110+110*p);
+for(let i=0;i<n;i++){const d=drops[i];d.y+=d.v*dt;if(d.y>1.05){d.y=-.05;d.x=Math.random()}const x=d.x*W,y=d.y*H;ctx.moveTo(x,y);ctx.lineTo(x-d.l*.25,y+d.l)}
+ctx.stroke();ctx.restore();
+if(toast&&toast.t>0){toast.t-=dt;ctx.globalAlpha=Math.max(0,Math.min(1,toast.t));ctx.font="bold 15px system-ui,sans-serif";ctx.textAlign="center";ctx.lineWidth=4;ctx.strokeStyle="#000";ctx.fillStyle="#fff";ctx.strokeText(toast.s,W/2,96);ctx.fillText(toast.s,W/2,96);ctx.globalAlpha=1}}
+function hud(){const p=Math.min(1,t/DAY),l=lvl();S_(eC,"☂ "+ck(p));S_(eJ,"Uttara "+"★".repeat(l)+"☆".repeat(5-l));S_(eL,"♥".repeat(lives)+"♡".repeat(3-lives));pr.style.width=(p*100).toFixed(1)+"%"}
+function loop(ts){requestAnimationFrame(loop);const dt=Math.min(.05,(ts-last)/1000||0);last=ts;if(st==="play"||st==="fall")upd(dt);draw(dt);hud()}
+G.onclick=()=>{reset();ov.hidden=true;st="play";beep(500,.08,"triangle")};
+const mv=e=>{if(st==="play"||st==="menu")tx=e.clientX};
+addEventListener("pointerdown",mv);addEventListener("pointermove",mv);
+addEventListener("keydown",e=>{const k=e.key;if(k==="ArrowLeft"||k==="a"||k==="A")keys.l=1;if(k==="ArrowRight"||k==="d"||k==="D")keys.r=1;if(k.indexOf("Arrow")===0)e.preventDefault()});
+addEventListener("keyup",e=>{const k=e.key;if(k==="ArrowLeft"||k==="a"||k==="A")keys.l=0;if(k==="ArrowRight"||k==="d"||k==="D")keys.r=0});
+addEventListener("resize",size);
+size();
+T.textContent="Dhaka Downpour";
+M.innerHTML="<b>Mind the Manhole.</b> Survive one rainy Dhaka day, 7:00 AM to 9:00 PM, without falling into an open manhole.<br><br>Drag (or use ← →) to steer your umbrella between CNGs and legunas as the Uttara jam climbs to ★★★★★. A swirling puddle hides an open manhole. A green branch stuck in it is Dhaka’s official warning sign.";
+G.textContent="Start the day";
+try{const b=+localStorage.getItem("dd_best")||0;if(b>0)B.textContent="Best: "+ck(b)}catch(e){}
+reset();requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
